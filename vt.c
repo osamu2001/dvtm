@@ -254,6 +254,7 @@ static const char *keytable[KEY_MAX+1] = {
 static void puttab(Vt *t, int count);
 static void process_nonprinting(Vt *t, wchar_t wc);
 static void send_curs(Vt *t);
+static void send_primary_device_attributes(Vt *t);
 
 __attribute__ ((const))
 static attr_t build_attrs(attr_t curattrs)
@@ -1101,6 +1102,10 @@ static void interpret_csi(Vt *t)
 		if (param_count == 1 && csiparam[0] == 6)
 			send_curs(t);
 		break;
+	case 'c': /* DA: query primary device attributes */
+		if (param_count == 0 || (param_count == 1 && csiparam[0] == 0))
+			send_primary_device_attributes(t);
+		break;
 	default:
 		break;
 	}
@@ -1413,6 +1418,10 @@ int vt_process(Vt *t)
 	res = read(t->pty, t->rbuf + t->rlen, sizeof(t->rbuf) - t->rlen);
 	if (res < 0)
 		return -1;
+	if (res == 0) {
+		errno = EIO;
+		return -1;
+	}
 
 	t->rlen += res;
 	while (pos < t->rlen) {
@@ -1695,6 +1704,13 @@ static void send_curs(Vt *t)
 	char keyseq[16];
 	snprintf(keyseq, sizeof keyseq, "\e[%d;%dR", (int)(b->curs_row - b->lines), b->curs_col);
 	vt_write(t, keyseq, strlen(keyseq));
+}
+
+static void send_primary_device_attributes(Vt *t)
+{
+	/* Respond like a VT100-compatible terminal with advanced video option. */
+	static const char keyseq[] = "\e[?1;2c";
+	vt_write(t, keyseq, sizeof(keyseq) - 1);
 }
 
 void vt_keypress(Vt *t, int keycode)

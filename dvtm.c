@@ -196,7 +196,7 @@ static void paste(const char *args[]);
 static void quit(const char *args[]);
 static void redraw(const char *args[]);
 static void scrollback(const char *args[]);
-static void send(const char *args[]);
+static void sendcmd(const char *args[]);
 static void setlayout(const char *args[]);
 static void incnmaster(const char *args[]);
 static void setmfact(const char *args[]);
@@ -249,6 +249,7 @@ static const char *shell;
 static Register copyreg;
 static volatile sig_atomic_t running = true;
 static bool runinall = false;
+static bool startup_ran = false;
 
 static void
 eprint(const char *errstr, ...) {
@@ -1006,11 +1007,15 @@ destroy(Client *c) {
 	wnoutrefresh(c->window);
 	vt_destroy(c->term);
 	delwin(c->window);
-	if (!clients && LENGTH(actions)) {
-		if (!strcmp(c->cmd, shell))
+	if (!clients) {
+		if (startup_ran && LENGTH(actions)) {
+			if (!strcmp(c->cmd, shell))
+				quit(NULL);
+			else
+				create(NULL);
+		} else {
 			quit(NULL);
-		else
-			create(NULL);
+		}
 	}
 	free(c);
 	arrange();
@@ -1341,7 +1346,7 @@ scrollback(const char *args[]) {
 }
 
 static void
-send(const char *args[]) {
+sendcmd(const char *args[]) {
 	if (sel && args && args[0])
 		vt_write(sel->term, args[0], strlen(args[0]));
 }
@@ -1408,6 +1413,7 @@ setmfact(const char *args[]) {
 
 static void
 startup(const char *args[]) {
+	startup_ran = true;
 	for (unsigned int i = 0; i < LENGTH(actions); i++)
 		actions[i].cmd(actions[i].args);
 }
